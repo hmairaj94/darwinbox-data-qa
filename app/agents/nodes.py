@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_groq import ChatGroq
 
@@ -14,10 +14,26 @@ SYSTEM_PROMPT = """You are a careful data analyst working with uploaded tables i
 Follow this tool contract exactly:
 1. Call inspect_schema before writing SQL. Never invent a table, column, or join key.
 2. Use the provided join hints for cross-file analysis. Prefer explicit JOIN conditions.
-3. Call run_sql with exactly one read-only SELECT query using DuckDB syntax.
+3. Call run_sql with exactly one read-only SELECT query using DuckDB syntax. The SQL must
+   directly answer the question: use AVG for an average, SUM for a total, COUNT for a count,
+   and suitable grouping for comparisons or trends. Never substitute sample rows for the
+   calculation the user requested.
 4. If a query fails, use the returned error to correct it. Never repeat the same SQL.
 5. Never claim a numeric result without a successful run_sql result.
 The system enforces a row limit and finite step and retry budgets."""
+
+ANSWER_STYLE_PROMPT = """You turn verified analytical values into a natural-language answer.
+Follow these rules:
+- Lead with the answer or conclusion, not the process used to obtain it.
+- Use clear, conversational language and usually one or two sentences.
+- Include the important number, unit, category, or date when the values support it.
+- If the requested calculation cannot be made because values are missing or null, explain that
+  directly and specifically.
+- Do not mention SQL, queries, tools, rows returned, result sets, databases, or internal steps.
+- Never begin with phrases such as "The query returned", "The result shows", "Based on the
+  data", or "According to the results".
+- Do not invent a reason for missing values and do not claim anything beyond the supplied values.
+- Return only the answer text, without a heading or bullet label."""
 
 
 def _settings_from_config(config: RunnableConfig) -> Settings:
@@ -133,10 +149,15 @@ def synthesise_node(state: AgentState, config: RunnableConfig) -> dict:
         {"columns": state.get("columns", []), "rows": state.get("rows", [])},
         default=str,
     )
-    prompt = (
-        "Answer the user's question using only this query result. Be concise, mention key "
-        "numbers, and say when the result is empty. Do not mention internal tools.\n\n"
-        f"Question: {state['question']}\nSQL: {state.get('sql', '')}\nResult: {result}"
-    )
-    response = create_chat_model(settings).invoke(prompt)
+    messages = [
+        SystemMessage(content=ANSWER_STYLE_PROMPT),
+        HumanMessage(
+            content=(
+                f"User question: {state['question']}\n"
+                f"Verified SQL: {state.get('sql', '')}\n"
+                f"Verified values: {result}"
+            )
+        ),
+    ]
+    response = create_chat_model(settings).invoke(messages)
     return {"answer": str(response.content)}

@@ -3,7 +3,13 @@ import json
 from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agents.graph import SCHEMA_TOOL, SQL_TOOL, route_agent_tool
-from app.agents.nodes import process_sql_output_node, schema_tool_node, sql_tool_node
+from app.agents.nodes import (
+    ANSWER_STYLE_PROMPT,
+    SYSTEM_PROMPT,
+    process_sql_output_node,
+    schema_tool_node,
+    sql_tool_node,
+)
 from app.agents.tools import run_sql_tool
 from app.core.config import get_settings
 
@@ -103,3 +109,9 @@ def test_sql_tool_injects_dependencies_without_mutating_history(monkeypatch) -> 
     assert captured_args["settings"] is settings
     assert message.tool_calls[0]["args"] == {"sql": "bad sql"}
     assert "deliberate retry test" in update["messages"][0].content
+
+
+def test_prompts_require_direct_calculations_and_natural_answers() -> None:
+    assert "Never substitute sample rows" in SYSTEM_PROMPT
+    assert "Do not mention SQL, queries, tools, rows returned" in ANSWER_STYLE_PROMPT
+    assert '"The query returned"' in ANSWER_STYLE_PROMPT
