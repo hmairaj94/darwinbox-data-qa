@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      CONFIG_PATH: /app/config.json
+    volumes:
+      - session-data:/app/data/sessions
+    restart: unless-stopped
+
+volumes:
+  session-data:
+

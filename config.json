@@ -1,0 +1,27 @@
+{
+  "app": {
+    "name": "Assignment Darwinbox Datalens Q&A",
+    "host": "0.0.0.0",
+    "port": 8000,
+    "debug": false
+  },
+  "model": {
+    "name": "openai/gpt-oss-120b",
+    "temperature": 0.0,
+    "max_retries": 2
+  },
+  "upload": {
+    "data_dir": "data/sessions",
+    "allowed_extensions": [".csv", ".xlsx", ".xls"],
+    "max_file_size_mb": 25,
+    "max_files": 10
+  },
+  "query": {
+    "row_limit": 200,
+    "preview_rows": 3,
+    "max_agent_attempts": 3,
+    "max_agent_steps": 6,
+    "join_hint_threshold": 0.55,
+    "max_prompt_chars": 24000
+  }
+}
