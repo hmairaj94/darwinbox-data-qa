@@ -53,12 +53,15 @@ def agent_node(state: AgentState, config: RunnableConfig) -> dict:
     return {"messages": [response], "steps": steps}
 
 
-def _execute_requested_tool(state: AgentState, selected_tool) -> dict:
+def _execute_requested_tool(
+    state: AgentState, selected_tool, injected_args: dict | None = None
+) -> dict:
     last_message = state["messages"][-1]
     if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
         raise ValueError("No tool call found in graph state")
     tool_call = last_message.tool_calls[0]
-    result = selected_tool.invoke(tool_call["args"])
+    tool_args = {**tool_call["args"], **(injected_args or {})}
+    result = selected_tool.invoke(tool_args)
     return {
         "messages": [
             ToolMessage(
@@ -70,14 +73,27 @@ def _execute_requested_tool(state: AgentState, selected_tool) -> dict:
     }
 
 
-def schema_tool_node(state: AgentState) -> dict:
+def schema_tool_node(state: AgentState, config: RunnableConfig) -> dict:
     """Execute the schema tool after the router injects trusted metadata."""
-    return _execute_requested_tool(state, inspect_schema_tool)
+    settings = _settings_from_config(config)
+    return _execute_requested_tool(
+        state,
+        inspect_schema_tool,
+        {
+            "metadata": state["metadata"],
+            "max_prompt_chars": settings.query.max_prompt_chars,
+        },
+    )
 
 
-def sql_tool_node(state: AgentState) -> dict:
+def sql_tool_node(state: AgentState, config: RunnableConfig) -> dict:
     """Execute the SQL tool after the router injects session dependencies."""
-    return _execute_requested_tool(state, run_sql_tool)
+    settings = _settings_from_config(config)
+    return _execute_requested_tool(
+        state,
+        run_sql_tool,
+        {"session_id": state["session_id"], "settings": settings},
+    )
 
 
 def process_sql_output_node(state: AgentState) -> dict:

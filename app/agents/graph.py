@@ -28,7 +28,7 @@ SYNTHESISE = "synthesise"
 def route_agent_tool(
     state: AgentState, config: RunnableConfig
 ) -> Literal["schema_tool", "sql_tool", "end"]:
-    """Inject trusted state arguments and route by the model's requested tool."""
+    """Route by tool name without mutating the persisted model message."""
     last_message = state["messages"][-1]
     if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
         return "end"
@@ -40,12 +40,8 @@ def route_agent_tool(
     if state.get("steps", 0) >= settings.query.max_agent_steps:
         return "end"
     if tool_call["name"] == inspect_schema_tool.name:
-        tool_call["args"]["metadata"] = state["metadata"]
-        tool_call["args"]["max_prompt_chars"] = settings.query.max_prompt_chars
         return SCHEMA_TOOL
     if tool_call["name"] == run_sql_tool.name:
-        tool_call["args"]["session_id"] = state["session_id"]
-        tool_call["args"]["settings"] = settings
         return SQL_TOOL
     return "end"
 
