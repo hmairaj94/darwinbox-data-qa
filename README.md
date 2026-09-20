@@ -1,4 +1,4 @@
-# DataLens Q&A
+# DarwinBox Assignment - Excel/CSV QA Application
 
 A small AI-powered web application for asking analytical questions across uploaded CSV and Excel files. It uses DuckDB for deterministic analysis and a custom LangGraph workflow with a Groq-hosted open model for natural-language-to-SQL planning.
 
@@ -65,17 +65,17 @@ The default model is `openai/gpt-oss-120b` through `ChatGroq`. Change `model.nam
 
 The current architecture stores a DuckDB database and metadata under `data/sessions` for each upload session. A container platform with a stable filesystem is therefore a better fit than a serverless function platform.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hmairaj94/darwinbox-data-qa)
+
 1. Initialize this directory as a Git repository and push it to GitHub or GitLab.
-2. In Render, create a **Web Service** from the repository and choose the **Docker** runtime.
-3. Add these environment variables:
+2. Click **Deploy to Render** above. Render reads the included `render.yaml` Blueprint and builds the Dockerfile.
+3. Enter `GROQ_API_KEY` when prompted. The Blueprint supplies `CONFIG_PATH`; Render supplies the service port automatically.
 
    ```text
    GROQ_API_KEY=<your Groq API key>
-   CONFIG_PATH=/app/config.json
-   PORT=8000
    ```
 
-4. Set the health-check path to `/api/health` and deploy.
+4. Deploy. The Blueprint configures `/api/health` as the health-check path.
 5. For a short assignment demo, the service can use its default ephemeral filesystem. Uploaded sessions will be lost whenever the service restarts or redeploys.
 6. For durable sessions, attach a persistent disk at `/app/data/sessions`. Render persistent disks are a paid feature and restrict the service to one instance, which is acceptable for this prototype.
 

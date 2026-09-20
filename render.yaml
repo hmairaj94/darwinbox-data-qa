@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: darwinbox-data-qa
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CONFIG_PATH
+        value: /app/config.json

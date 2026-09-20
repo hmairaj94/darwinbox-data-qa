@@ -12,5 +12,4 @@ RUN mkdir -p /app/data/sessions && chown -R 10001:10001 /app
 USER 10001
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
