@@ -14,6 +14,7 @@ from fastapi import UploadFile
 from app.core.config import Settings
 from app.core.exceptions import UploadValidationError
 from app.schemas.api import JoinHint, TableSummary, UploadResponse
+from app.services.excel_detection import detect_sheet_tables
 from app.services.session_store import create_session, save_metadata
 
 
@@ -108,13 +109,37 @@ def infer_join_hints(
     return hints
 
 
-def _parse_file(content: bytes, extension: str) -> dict[str, pd.DataFrame]:
+def _parse_file(content: bytes, extension: str, settings: Settings) -> list[dict[str, Any]]:
     buffer = io.BytesIO(content)
     if extension == ".csv":
-        return {"": pd.read_csv(buffer)}
+        return [
+            {
+                "sheet": "",
+                "frame": pd.read_csv(buffer),
+                "source_range": None,
+                "detection_confidence": 1.0,
+                "warnings": [],
+            }
+        ]
     engine = "xlrd" if extension == ".xls" else "openpyxl"
-    sheets = pd.read_excel(buffer, sheet_name=None, engine=engine)
-    return {str(name): frame for name, frame in sheets.items()}
+    sheets = pd.read_excel(buffer, sheet_name=None, header=None, engine=engine)
+    parsed: list[dict[str, Any]] = []
+    for sheet_name, raw in sheets.items():
+        tables = detect_sheet_tables(
+            raw,
+            header_scan_rows=settings.upload.header_scan_rows,
+            min_table_rows=settings.upload.min_table_rows,
+            confidence_threshold=settings.upload.detection_confidence_threshold,
+        )
+        for index, table in enumerate(tables, start=1):
+            parsed.append(
+                {
+                    "sheet": str(sheet_name),
+                    "region": f"table_{index}" if len(tables) > 1 else "",
+                    **table,
+                }
+            )
+    return parsed
 
 
 async def ingest_files(
@@ -131,6 +156,7 @@ async def ingest_files(
     session_id, directory = create_session(settings)
     frames: dict[str, pd.DataFrame] = {}
     sources: dict[str, str] = {}
+    detections: dict[str, dict[str, Any]] = {}
     used_tables: set[str] = set()
     max_bytes = settings.upload.max_file_size_mb * 1024 * 1024
 
@@ -145,18 +171,27 @@ async def ingest_files(
                 f"{filename} exceeds {settings.upload.max_file_size_mb} MB"
             )
         try:
-            parsed = _parse_file(content, extension)
+            parsed = _parse_file(content, extension, settings)
         except Exception as exc:
             raise UploadValidationError(f"Could not parse {filename}: {exc}") from exc
-        for sheet, raw_frame in parsed.items():
+        for parsed_table in parsed:
+            sheet = parsed_table["sheet"]
+            raw_frame = parsed_table["frame"]
             if raw_frame.empty and len(raw_frame.columns) == 0:
                 continue
             base = safe_identifier(Path(filename).stem)
             if sheet:
                 base = f"{base}_{safe_identifier(sheet, 'sheet')}"
+            if parsed_table.get("region"):
+                base = f"{base}_{parsed_table['region']}"
             table = _unique_name(base, used_tables)
             frames[table] = _normalise_dataframe(raw_frame)
             sources[table] = filename if not sheet else f"{filename} / {sheet}"
+            detections[table] = {
+                "source_range": parsed_table.get("source_range"),
+                "detection_confidence": parsed_table.get("detection_confidence", 1.0),
+                "warnings": parsed_table.get("warnings", []),
+            }
 
     if not frames:
         raise UploadValidationError("No tabular data was found in the uploaded files")
@@ -177,6 +212,7 @@ async def ingest_files(
             "source": sources[table],
             "rows": len(frame),
             "columns": _profile(frame, settings.query.preview_rows),
+            **detections[table],
         }
         for table, frame in frames.items()
     ]
@@ -194,6 +230,9 @@ async def ingest_files(
                 source=table["source"],
                 rows=table["rows"],
                 columns=[column["name"] for column in table["columns"]],
+                source_range=table["source_range"],
+                detection_confidence=table["detection_confidence"],
+                warnings=table["warnings"],
             )
             for table in table_metadata
         ],

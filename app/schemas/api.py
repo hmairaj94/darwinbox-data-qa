@@ -8,6 +8,9 @@ class TableSummary(BaseModel):
     source: str
     rows: int
     columns: list[str]
+    source_range: str | None = None
+    detection_confidence: float = 1.0
+    warnings: list[str] = Field(default_factory=list)
 
 
 class JoinHint(BaseModel):
@@ -42,4 +45,3 @@ class QueryResponse(BaseModel):
     rows: list[dict[str, Any]]
     chart: ChartSpec | None = None
     attempts: int
-

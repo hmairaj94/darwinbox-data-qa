@@ -27,6 +27,9 @@ class UploadConfig(BaseModel):
     allowed_extensions: list[str] = Field(default_factory=lambda: [".csv", ".xlsx"])
     max_file_size_mb: int = 25
     max_files: int = 10
+    header_scan_rows: int = 12
+    min_table_rows: int = 2
+    detection_confidence_threshold: float = 0.65
 
 
 class QueryConfig(BaseModel):

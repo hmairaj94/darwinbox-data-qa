@@ -22,7 +22,14 @@ uploadForm.addEventListener('submit', async (event) => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Upload failed');
     sessionId = data.session_id;
-    target.textContent = data.tables.map(t => `${t.name} (${t.rows} rows)`).join(' · ');
+    target.textContent = data.tables.map((table) => {
+      const location = table.source_range ? ` · ${table.source_range}` : '';
+      const confidence = table.detection_confidence < 1
+        ? ` · ${Math.round(table.detection_confidence * 100)}% detection confidence`
+        : '';
+      const warnings = table.warnings.length ? `\n  ⚠ ${table.warnings.join(' ')}` : '';
+      return `${table.name} (${table.rows} rows)${location}${confidence}${warnings}`;
+    }).join('\n');
     document.querySelector('#query-card').classList.remove('disabled');
   } catch (error) { showError(target, error); } finally { setBusy(uploadForm, false); }
 });
